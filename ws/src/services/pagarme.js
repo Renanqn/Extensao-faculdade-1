@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const api = axios.create({
-  baseURL: 'https://api.pagar.me/1',
+  baseURL: 'https://api.pagar.me/core/v5',
 });
 
 const api_key = require('../data/keys.json').api_key;

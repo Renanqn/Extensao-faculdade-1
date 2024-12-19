@@ -31,7 +31,7 @@ import Table from '../../components/Table';
 
 const ServicosProdutos = () => {
   const dispatch = useDispatch();
-  const { servico, servicos, form, components, behavior } = useSelector(
+  const { servico, servicos, form, components = {}, behavior } = useSelector(
     (state) => state.servico
   );
 
@@ -97,7 +97,7 @@ const ServicosProdutos = () => {
 
   useEffect(() => {
     dispatch(allServicos());
-  }, []);
+  }, [dispatch]);
 
   return (
     <div className="col p-5 overflow-auto h-100">
@@ -115,7 +115,7 @@ const ServicosProdutos = () => {
                 type="text"
                 className="form-control"
                 placeholder="Titulo do serviço"
-                value={servico.titulo}
+                value={servico.titulo || ''}
                 onChange={(e) => {
                   setServico('titulo', e.target.value);
                 }}
@@ -127,7 +127,7 @@ const ServicosProdutos = () => {
                 type="number"
                 className="form-control"
                 placeholder="Preço do serviço"
-                value={servico.preco}
+                value={servico.preco || ''}
                 onChange={(e) => setServico('preco', e.target.value)}
               />
             </div>
@@ -137,7 +137,7 @@ const ServicosProdutos = () => {
                 type="number"
                 className="form-control"
                 placeholder="Recorrência do serviço"
-                value={servico.recorrencia}
+                value={servico.recorrencia || ''}
                 onChange={(e) => setServico('recorrencia', e.target.value)}
               />
             </div>
@@ -147,7 +147,7 @@ const ServicosProdutos = () => {
                 type="number"
                 className="form-control"
                 placeholder="Comissão do serviço"
-                value={servico.comissao}
+                value={servico.comissao || ''}
                 onChange={(e) => setServico('comissao', e.target.value)}
               />
             </div>
@@ -156,7 +156,7 @@ const ServicosProdutos = () => {
               <DatePicker
                 block
                 format="HH:mm"
-                value={servico.duracao}
+                value={servico.duracao || moment()} // Valor padrão se for undefined
                 hideMinutes={(min) => ![0, 30].includes(min)}
                 onChange={(e) => {
                   setServico('duracao', e);
@@ -167,7 +167,7 @@ const ServicosProdutos = () => {
               <b className="">Status</b>
               <select
                 className="form-control"
-                value={servico.status}
+                value={servico.status || 'A'} // Valor padrão se for undefined
                 onChange={(e) => setServico('status', e.target.value)}
               >
                 <option value="A">Ativo</option>
@@ -181,40 +181,42 @@ const ServicosProdutos = () => {
                 rows="5"
                 className="form-control"
                 placeholder="Descrição do serviço..."
-                value={servico.descricao}
+                value={servico.descricao || ''}
                 onChange={(e) => setServico('descricao', e.target.value)}
               ></textarea>
             </div>
 
             <div className="form-group col-12">
-              <b className="d-block">Imagens do serviço</b>
-              <Uploader
-                multiple
-                autoUpload={false}
-                listType="picture"
-                defaultFileList={servico.arquivos.map((s, i) => ({
-                  name: s?.caminho,
-                  fileKey: i,
-                  url: `${util.AWS.bucketURL}/${s?.caminho}`,
-                }))}
-                onChange={(files) => {
-                  const arquivos = files
-                    .filter((f) => f.blobFile)
-                    .map((f) => f.blobFile);
+            <b className="d-block">Imagens do serviço</b>
+            <Uploader
+              multiple
+              autoUpload={false}
+              listType="picture"
+              defaultFileList={
+                Array.isArray(servico?.arquivos)
+                  ? servico.arquivos.map((s, i) => ({
+                      name: s?.caminho || `arquivo-${i}`,
+                      fileKey: i,
+                      url: s?.caminho ? `${util.AWS.bucketURL}/${s.caminho}` : '',
+                    }))
+                  : []
+              }
+              onChange={(files) => {
+                const arquivos = files.filter((f) => f.blobFile).map((f) => f.blobFile);
+                setServico('arquivos', arquivos);
+              }}
+              onRemove={(file) => {
+                if (behavior === 'update' && file.url) {
+                  dispatch(removeArquivo(file.name));
+                }
+              }}
+            >
+              <button>
+                <Icon icon="camera-retro" size="lg" />
+              </button>
+            </Uploader>
+          </div>
 
-                  setServico('arquivos', arquivos);
-                }}
-                onRemove={(file) => {
-                  if (behavior === 'update' && file.url) {
-                    dispatch(removeArquivo(file.name));
-                  }
-                }}
-              >
-                <button>
-                  <Icon icon="camera-retro" size="lg" />
-                </button>
-              </Uploader>
-            </div>
           </div>
           <Button
             loading={form.saving}
@@ -357,7 +359,7 @@ const ServicosProdutos = () => {
                     edit(item);
                   }}
                 >
-                  <span class="mdi mdi-pencil"></span>
+                  <span className="mdi mdi-pencil"></span>
                 </Button>
                 <Button
                   color="red"
@@ -372,7 +374,7 @@ const ServicosProdutos = () => {
                     setComponents('confirmDelete', true);
                   }}
                 >
-                  <span class="mdi mdi-trash-can"></span>
+                  <span className="mdi mdi-trash-can"></span>
                 </Button>
               </>
             )}
@@ -385,3 +387,4 @@ const ServicosProdutos = () => {
 };
 
 export default ServicosProdutos;
+

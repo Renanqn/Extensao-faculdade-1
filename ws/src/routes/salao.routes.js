@@ -6,24 +6,23 @@ const Horario = require('../models/horario');
 const turf = require('turf');
 const util = require('../util');
 
+// Rota para criar um novo salão
 router.post('/', async (req, res) => {
   try {
     const salao = await new Salao(req.body).save();
-    res.json({ salao });
+    res.json({ error: false, salao });
   } catch (err) {
     res.json({ error: true, message: err.message });
   }
 });
 
-/*
-  FAZER NA #01
-*/
+// Rota para buscar serviços de um salão
 router.get('/servicos/:salaoId', async (req, res) => {
   try {
     const { salaoId } = req.params;
     const servicos = await Servico.find({
       salaoId,
-      status: 'A',
+      status: 'A', // Apenas serviços ativos
     }).select('_id titulo');
 
     res.json({
@@ -35,24 +34,30 @@ router.get('/servicos/:salaoId', async (req, res) => {
   }
 });
 
-/*
-  FAZER NA #01
-*/
+// Rota para filtrar e obter informações de um salão (como distância e horários)
 router.post('/filter/:id', async (req, res) => {
   try {
     const salao = await Salao.findById(req.params.id).select(req.body.fields);
+    const { coordinates } = salao.geo || {};
 
+    if (!coordinates || coordinates.length !== 2) {
+      return res.json({ error: true, message: 'Localização inválida do salão.' });
+    }
+
+    // Calcula a distância entre o salão e uma localização de referência
     const distance = turf
       .distance(
-        turf.point(salao.geo.coordinates),
-        turf.point([-30.043858, -51.103487])
+        turf.point(coordinates),
+        turf.point([-30.043858, -51.103487]) // Exemplo de coordenadas de referência
       )
       .toFixed(2);
 
+    // Obtém os horários do salão
     const horarios = await Horario.find({
       salaoId: req.params.id,
     }).select('dias inicio fim');
 
+    // Verifica se o salão está aberto com base nos horários
     const isOpened = await util.isOpened(horarios);
 
     res.json({ error: false, salao: { ...salao._doc, distance, isOpened } });
@@ -62,3 +67,4 @@ router.post('/filter/:id', async (req, res) => {
 });
 
 module.exports = router;
+

@@ -8,11 +8,8 @@ const ColaboradorServico = require('../models/relationship/colaboradorServico');
 const moment = require('moment');
 const pagarme = require('../services/pagarme');
 
-/*
-  FAZER NA #01
-*/
 router.post('/', async (req, res) => {
-  const db = mongoose.connection;
+  const db = newmongoose.connection;
   const session = await db.startSession();
   session.startTransaction();
 
@@ -20,16 +17,16 @@ router.post('/', async (req, res) => {
     const { colaborador, salaoId } = req.body;
     let newColaborador = null;
 
+    // Verifica se o colaborador já existe
     const existentColaborador = await Colaborador.findOne({
       $or: [
         { email: colaborador.email },
         { telefone: colaborador.telefone },
-        //{ cpf: colaborador.cpf },
       ],
     });
 
     if (!existentColaborador) {
-      // CRIANDO A CONTA BANCÁRIA
+      // Criando a conta bancária
       const { contaBancaria } = colaborador;
       const pagarmeBankAccount = await pagarme('/bank_accounts', {
         bank_code: contaBancaria.banco,
@@ -44,28 +41,26 @@ router.post('/', async (req, res) => {
         throw pagarmeBankAccount;
       }
 
-      // CRIANDO RECEBEDOR
-      const pargarmeReceiver = await pagarme('/recipients', {
+      // Criando o recebedor no Pagar.me
+      const pagarmeReceiver = await pagarme('/recipients', {
         bank_account_id: pagarmeBankAccount.data.id,
         transfer_interval: 'daily',
         transfer_enabled: true,
       });
 
-      if (pagarmeBankAccount.error) {
-        throw pargarmeReceiver;
+      if (pagarmeReceiver.error) {
+        throw pagarmeReceiver;
       }
 
       newColaborador = await new Colaborador({
         ...colaborador,
-        recipientId: pargarmeReceiver.data.id,
+        recipientId: pagarmeReceiver.data.id,
       }).save({ session });
     }
 
-    const colaboradorId = existentColaborador
-      ? existentColaborador._id
-      : newColaborador._id;
+    const colaboradorId = existentColaborador ? existentColaborador._id : newColaborador._id;
 
-    // RELAÇÃO COM O SALÃO
+    // Relacionamento com o salão
     const existentRelationship = await SalaoColaborador.findOne({
       salaoId,
       colaboradorId,
@@ -77,20 +72,16 @@ router.post('/', async (req, res) => {
         colaboradorId,
         status: colaborador.vinculo,
       }).save({ session });
-    }
-
-    if (existentRelationship && existentRelationship.status === 'I') {
+    } else if (existentRelationship.status === 'I') {
+      // Atualiza para ativo caso o vínculo esteja inativo
       await SalaoColaborador.findOneAndUpdate(
-        {
-          salaoId,
-          colaboradorId,
-        },
+        { salaoId, colaboradorId },
         { status: 'A' },
         { session }
       );
     }
 
-    // RELAÇÃO COM OS SERVIÇOS / ESPECIALIDADES
+    // Relacionamento com os serviços/especialidades
     await ColaboradorServico.insertMany(
       colaborador.especialidades.map((servicoId) => ({
         servicoId,
@@ -113,9 +104,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-/*
-  FAZER NA #01
-*/
 router.post('/filter', async (req, res) => {
   try {
     const colaboradores = await Colaborador.find(req.body.filters);
@@ -125,9 +113,6 @@ router.post('/filter', async (req, res) => {
   }
 });
 
-/*
-  FAZER NA #01
-*/
 router.get('/salao/:salaoId', async (req, res) => {
   try {
     const { salaoId } = req.params;
@@ -135,7 +120,7 @@ router.get('/salao/:salaoId', async (req, res) => {
 
     const colaboradores = await SalaoColaborador.find({
       salaoId,
-      status: { $ne: 'E' },
+      status: { $ne: 'E' }, // Exclui colaboradores com status 'E' (excluídos)
     })
       .populate('colaboradorId')
       .select('colaboradorId dataCadastro status');
@@ -166,22 +151,20 @@ router.get('/salao/:salaoId', async (req, res) => {
   }
 });
 
-/*
-  FAZER NA #01
-*/
 router.put('/:colaboradorId', async (req, res) => {
   try {
     const { vinculo, vinculoId, especialidades } = req.body;
     const { colaboradorId } = req.params;
 
+    // Atualiza os dados do colaborador
     await Colaborador.findByIdAndUpdate(colaboradorId, req.body);
 
-    // ATUALIZANDO VINCULO
+    // Atualiza o vínculo do colaborador com o salão
     if (vinculo) {
       await SalaoColaborador.findByIdAndUpdate(vinculoId, { status: vinculo });
     }
 
-    // ATUALIZANDO ESPECIALIDADES
+    // Atualiza as especialidades do colaborador
     if (especialidades) {
       await ColaboradorServico.deleteMany({
         colaboradorId,
@@ -201,11 +184,9 @@ router.put('/:colaboradorId', async (req, res) => {
   }
 });
 
-/*
-  FAZER NA #01
-*/
 router.delete('/vinculo/:id', async (req, res) => {
   try {
+    // Exclui o vínculo entre o colaborador e o salão (status 'E' para excluído)
     await SalaoColaborador.findByIdAndUpdate(req.params.id, { status: 'E' });
     res.json({ error: false });
   } catch (err) {
@@ -214,3 +195,4 @@ router.delete('/vinculo/:id', async (req, res) => {
 });
 
 module.exports = router;
+

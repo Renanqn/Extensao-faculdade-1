@@ -15,18 +15,16 @@ router.post('/', async (req, res) => {
     const { cliente, salaoId } = req.body;
     let newClient = null;
 
+    // Verifica se o cliente já existe
     const existentClient = await Cliente.findOne({
       $or: [
         { email: cliente.email },
         { telefone: cliente.telefone },
-        //{ cpf: cliente.cpf },
       ],
     });
 
     if (!existentClient) {
-      const _id = mongoose.Types.ObjectId();
-      const cliente = req.body.cliente;
-      console.log(cliente);
+      const _id = new mongoose.Types.ObjectId();
       const pagarmeCliente = await pagarme('/customers', {
         external_id: _id,
         name: cliente.nome,
@@ -43,12 +41,11 @@ router.post('/', async (req, res) => {
         birthday: cliente.dataNascimento,
       });
 
-      console.log(pagarmeCliente);
-
       if (pagarmeCliente.error) {
-        throw pagarmeCliente;
+        throw new Error(`Erro ao criar cliente no Pagar.me: ${pagarmeCliente.message}`);
       }
 
+      // Criação do cliente no banco de dados
       newClient = await new Cliente({
         _id,
         ...cliente,
@@ -58,6 +55,7 @@ router.post('/', async (req, res) => {
 
     const clienteId = existentClient ? existentClient._id : newClient._id;
 
+    // Verifica a relação entre o cliente e o salão
     const existentRelationship = await SalaoCliente.findOne({
       salaoId,
       clienteId,
@@ -68,9 +66,8 @@ router.post('/', async (req, res) => {
         salaoId,
         clienteId,
       }).save({ session });
-    }
-
-    if (existentRelationship && existentRelationship.status === 'I') {
+    } else if (existentRelationship.status === 'I') {
+      // Se o vínculo for inativo, atualiza para ativo
       await SalaoCliente.findOneAndUpdate(
         {
           salaoId,
@@ -84,14 +81,15 @@ router.post('/', async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
+    // Retorna sucesso ou erro
     if (
       existentRelationship &&
       existentRelationship.status === 'A' &&
       existentClient
     ) {
-      res.json({ error: true, message: 'Cliente já cadastrado!' });
+      res.json({ error: true, message: 'Cliente já cadastrado no salão!' });
     } else {
-      res.json({ error: false });
+      res.json({ error: false, message: 'Cliente cadastrado com sucesso!' });
     }
   } catch (err) {
     await session.abortTransaction();
@@ -102,6 +100,7 @@ router.post('/', async (req, res) => {
 
 router.post('/filter', async (req, res) => {
   try {
+    // Aplica os filtros para buscar clientes
     const clientes = await Cliente.find(req.body.filters);
     res.json({ error: false, clientes });
   } catch (err) {
@@ -111,6 +110,7 @@ router.post('/filter', async (req, res) => {
 
 router.get('/salao/:salaoId', async (req, res) => {
   try {
+    // Busca os clientes vinculados a um salão específico
     const clientes = await SalaoCliente.find({
       salaoId: req.params.salaoId,
       status: 'A',
@@ -133,8 +133,18 @@ router.get('/salao/:salaoId', async (req, res) => {
 
 router.delete('/vinculo/:id', async (req, res) => {
   try {
-    await SalaoCliente.findByIdAndUpdate(req.params.id, { status: 'I' });
-    res.json({ error: false });
+    // Desativa o vínculo entre cliente e salão
+    const updatedRelationship = await SalaoCliente.findByIdAndUpdate(
+      req.params.id,
+      { status: 'I' },
+      { new: true }
+    );
+
+    if (!updatedRelationship) {
+      return res.json({ error: true, message: 'Vínculo não encontrado!' });
+    }
+
+    res.json({ error: false, message: 'Vínculo desativado com sucesso.' });
   } catch (err) {
     res.json({ error: true, message: err.message });
   }

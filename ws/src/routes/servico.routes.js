@@ -1,185 +1,101 @@
 const express = require('express');
 const router = express.Router();
-const Busboy = require('busboy');
+const multer = require('multer'); // Importando o Multer
 const aws = require('../services/aws');
 const Servico = require('../models/servico');
 const Arquivos = require('../models/arquivos');
 const moment = require('moment');
 
-/*
-  FAZER NA #01
-*/
-router.post('/', async (req, res) => {
-  var busboy = new Busboy({ headers: req.headers });
-  busboy.on('finish', async () => {
-    try {
-      let errors = [];
-      let arquivos = [];
+// Configuração do Multer
+const storage = multer.memoryStorage();  // Armazena os arquivos em memória
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // Limita o tamanho do arquivo para 10MB
 
-      if (req.files && Object.keys(req.files).length > 0) {
-        for (let key of Object.keys(req.files)) {
-          const file = req.files[key];
+// Função reutilizável para upload de arquivos para o S3
+const uploadFiles = async (files, salaoId) => {
+  let errors = [];
+  let arquivos = [];
 
-          const nameParts = file.name.split('.');
-          const fileName = `${new Date().getTime()}.${
-            nameParts[nameParts.length - 1]
-          }`;
-          const path = `servicos/${req.body.salaoId}/${fileName}`;
-
-          const response = await aws.uploadToS3(
-            file,
-            path
-            //, acl = https://docs.aws.amazon.com/pt_br/AmazonS3/latest/dev/acl-overview.html
-          );
-
-          if (response.error) {
-            errors.push({ error: true, message: response.message.message });
-          } else {
-            arquivos.push(path);
-          }
-        }
+  if (files && files.length > 0) {
+    for (let file of files) {
+      // Validação de tipo de arquivo
+      if (file.mimetype !== 'image/jpeg' && file.mimetype !== 'image/png') {
+        errors.push({ error: true, message: `Tipo de arquivo não permitido: ${file.mimetype}. Apenas imagens JPG e PNG são aceitas.` });
+        continue;
       }
 
-      if (errors.length > 0) {
-        res.json(errors[0]);
-        return false;
+      const nameParts = file.originalname.split('.');
+      const fileName = `${new Date().getTime()}.${nameParts[nameParts.length - 1]}`;
+      const path = `servicos/${salaoId}/${fileName}`;
+
+      const response = await aws.uploadToS3(file.buffer, path);
+
+      if (response.error) {
+        errors.push({ error: true, message: response.message.message });
+      } else {
+        arquivos.push(path);
       }
-
-      // CRIAR SERVIÇO
-      let jsonServico = JSON.parse(req.body.servico);
-      jsonServico.salaoId = req.body.salaoId;
-      const servico = await new Servico(jsonServico).save();
-
-      // CRIAR ARQUIVO
-      arquivos = arquivos.map((arquivo) => ({
-        referenciaId: servico._id,
-        model: 'Servico',
-        arquivo,
-      }));
-      await Arquivos.insertMany(arquivos);
-
-      res.json({ error: false, arquivos });
-    } catch (err) {
-      res.json({ error: true, message: err.message });
     }
-  });
-  req.pipe(busboy);
-});
-
-/*
-  FAZER NA #01
-*/
-router.put('/:id', async (req, res) => {
-  var busboy = new Busboy({ headers: req.headers });
-  busboy.on('finish', async () => {
-    try {
-      let errors = [];
-      let arquivos = [];
-
-      if (req.files && Object.keys(req.files).length > 0) {
-        for (let key of Object.keys(req.files)) {
-          const file = req.files[key];
-
-          const nameParts = file.name.split('.');
-          const fileName = `${new Date().getTime()}.${
-            nameParts[nameParts.length - 1]
-          }`;
-          const path = `servicos/${req.body.salaoId}/${fileName}`;
-
-          const response = await aws.uploadToS3(
-            file,
-            path
-            //, acl = https://docs.aws.amazon.com/pt_br/AmazonS3/latest/dev/acl-overview.html
-          );
-
-          if (response.error) {
-            errors.push({ error: true, message: response.message.message });
-          } else {
-            arquivos.push(path);
-          }
-        }
-      }
-
-      if (errors.length > 0) {
-        res.json(errors[0]);
-        return false;
-      }
-
-      //  ATUALIZAR SERVIÇO
-      let jsonServico = JSON.parse(req.body.servico);
-      await Servico.findByIdAndUpdate(req.params.id, jsonServico);
-
-      // CRIAR ARQUIVO
-      arquivos = arquivos.map((arquivo) => ({
-        referenciaId: req.params.id,
-        model: 'Servico',
-        arquivo,
-      }));
-      await Arquivos.insertMany(arquivos);
-
-      res.json({ error: false });
-    } catch (err) {
-      res.json({ error: true, message: err.message });
-    }
-  });
-  req.pipe(busboy);
-});
-
-/*
-  FAZER NA #01
-*/
-router.get('/salao/:salaoId', async (req, res) => {
-  try {
-    let servicosSalao = [];
-    const servicos = await Servico.find({
-      salaoId: req.params.salaoId,
-      status: { $ne: 'E' },
-    });
-
-    for (let servico of servicos) {
-      const arquivos = await Arquivos.find({
-        model: 'Servico',
-        referenciaId: servico._id,
-      });
-      servicosSalao.push({ ...servico._doc, arquivos });
-    }
-
-    res.json({
-      error: false,
-      servicos: servicosSalao,
-    });
-  } catch (err) {
-    res.json({ error: true, message: err.message });
   }
-});
 
-/*
-  FAZER NA #01
-*/
-router.post('/remove-arquivo', async (req, res) => {
+  return { errors, arquivos };
+};
+
+// Rota para criar um novo serviço
+router.post('/', upload.array('files'), async (req, res) => {
+  console.log(req.files);  // Verifique o que está sendo enviado
+  if (!req.files || req.files.length === 0) {
+    return res.json({ error: true, message: 'Nenhum arquivo enviado.' });
+  }
+
   try {
-    const { arquivo } = req.body;
+    // Processar os arquivos
+    const { errors, arquivos } = await uploadFiles(req.files, req.body.salaoId);
 
-    // EXCLUIR DA AWS
-    await aws.deleteFileS3(arquivo);
+    if (errors.length > 0) {
+      return res.json(errors[0]);
+    }
 
-    // EXCLUIR DO BANCO DE DADOS
-    await Arquivos.findOneAndDelete({
+    // Criar serviço
+    const jsonServico = JSON.parse(req.body.servico);
+    jsonServico.salaoId = req.body.salaoId;
+    const servico = await new Servico(jsonServico).save();
+
+    // Inserir arquivos no banco de dados
+    const arquivosToInsert = arquivos.map((arquivo) => ({
+      referenciaId: servico._id,
+      model: 'Servico',
       arquivo,
-    });
+    }));
+    await Arquivos.insertMany(arquivosToInsert);
 
-    res.json({ error: false, message: 'Erro ao excluir o arquivo!' });
+    res.json({ error: false, arquivos });
   } catch (err) {
     res.json({ error: true, message: err.message });
   }
 });
 
-/*
-  FAZER NA #01
-*/
-router.delete('/:id', async (req, res) => {
+// Rota para atualizar um serviço
+router.put('/:id', upload.array('files'), async (req, res) => {
   try {
-    await Servico.findByIdAndUpdate(req.params.id, { status: 'E' });
+    // Processar os arquivos
+    const { errors, arquivos } = await uploadFiles(req.files, req.body.salaoId);
+
+    if (errors.length > 0) {
+      return res.json(errors[0]);
+    }
+
+    // Atualizar serviço
+    const jsonServico = JSON.parse(req.body.servico);
+    await Servico.findByIdAndUpdate(req.params.id, jsonServico);
+
+    // Inserir arquivos no banco de dados
+    const arquivosToInsert = arquivos.map((arquivo) => ({
+      referenciaId: req.params.id,
+      model: 'Servico',
+      arquivo,
+    }));
+    await Arquivos.insertMany(arquivosToInsert);
+
     res.json({ error: false });
   } catch (err) {
     res.json({ error: true, message: err.message });
@@ -187,3 +103,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+

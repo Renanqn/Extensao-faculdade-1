@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'moment/locale/pt-br';
-
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import {
   TagPicker,
@@ -16,7 +15,6 @@ import {
   Notification,
 } from 'rsuite';
 import 'rsuite/dist/styles/rsuite-default.css';
-
 import {
   allHorarios,
   addHorario,
@@ -126,36 +124,49 @@ const HorariosAtendimento = () => {
 
     horarios.map((hor, index) => {
       hor.dias.map((dia) => {
+        const diaValido = dia >= 0 && dia <= 6 ? dia : 0; // Garantir que 'dia' seja válido
         listaEventos.push({
           resource: { horario: hor, backgroundColor: colors[index] },
           title: `${hor.especialidades.length} espec. e ${hor.colaboradores.length} colab. disponíveis`,
           start: new Date(
-            diasSemanaData[dia].setHours(
-              parseInt(moment(hor.inicio).format('HH')),
-              parseInt(moment(hor.inicio).format('mm'))
-            )
+            diasSemanaData[diaValido]
+              ? diasSemanaData[diaValido].setHours(
+                  parseInt(moment(hor.inicio).format('HH')),
+                  parseInt(moment(hor.inicio).format('mm'))
+                )
+              : new Date() // Caso 'dia' seja inválido, use a data atual
           ),
           end: new Date(
-            diasSemanaData[dia].setHours(
-              parseInt(moment(hor.fim).format('HH')),
-              parseInt(moment(hor.fim).format('mm'))
-            )
+            diasSemanaData[diaValido]
+              ? diasSemanaData[diaValido].setHours(
+                  parseInt(moment(hor.fim).format('HH')),
+                  parseInt(moment(hor.fim).format('mm'))
+                )
+              : new Date() // Caso 'dia' seja inválido, use a data atual
           ),
         });
       });
     });
 
+    console.log(listaEventos); // Verifique os eventos gerados
     return listaEventos;
+  };
+
+  // Manipulador para a navegação
+  const handleNavigate = (date, view) => {
+    console.log('Navegando para:', date);
+    console.log('Visão atual:', view);
+    // Aqui você pode atualizar a data ou outras ações necessárias
   };
 
   useEffect(() => {
     dispatch(allHorarios());
     dispatch(allServicos());
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     dispatch(filterColaboradores());
-  }, [horario.especialidades]);
+  }, [dispatch, horario.especialidades]);
 
   return (
     <div className="col p-5 overflow-auto h-100">
@@ -225,15 +236,15 @@ const HorariosAtendimento = () => {
               <TagPicker
                 size="lg"
                 block
-                data={servicos}
+                data={servicos || []} // Verificação para garantir que 'servicos' seja um array
                 value={horario.especialidades}
                 onChange={(e) => {
                   setHorario('especialidades', e);
                 }}
               />
               <Checkbox
-                disabled={horario.especialidades.length === servicos.length}
-                checked={horario.especialidades.length === servicos.length}
+                disabled={horario.especialidades.length === servicos?.length}
+                checked={horario.especialidades.length === servicos?.length}
                 onChange={(v, selected) => {
                   if (selected) {
                     setHorario(
@@ -254,7 +265,7 @@ const HorariosAtendimento = () => {
               <TagPicker
                 size="lg"
                 block
-                data={colaboradores}
+                data={colaboradores || []} // Verificação para garantir que 'colaboradores' seja um array
                 disabled={horario.especialidades.length === 0}
                 value={horario.colaboradores}
                 onChange={(e) => {
@@ -262,8 +273,8 @@ const HorariosAtendimento = () => {
                 }}
               />
               <Checkbox
-                disabled={horario.colaboradores.length === colaboradores.length}
-                checked={horario.colaboradores.length === colaboradores.length}
+                disabled={horario.colaboradores.length === colaboradores?.length}
+                checked={horario.colaboradores.length === colaboradores?.length}
                 onChange={(v, selected) => {
                   if (selected) {
                     setHorario(
@@ -333,63 +344,48 @@ const HorariosAtendimento = () => {
         </Modal.Footer>
       </Modal>
 
-      <div className="row">
-        <div className="col-12">
-          <div className="w-100 d-flex justify-content-between">
-            <h2 className="mb-4 mt-0">Horarios de Atendimento</h2>
-            <div>
-              <button
-                onClick={() => setComponents('drawer', true)}
-                className="btn btn-primary btn-lg"
-              >
-                <span className="mdi mdi-plus"></span> Novo Horario
-              </button>
-            </div>
-          </div>
-
-          <Calendar
-            localizer={localizer}
-            onSelectEvent={(e) => {
-              const { horario } = e.resource;
-              onHorarioClick(horario);
-            }}
-            onSelectSlot={(slotInfo) => {
-              const { start, end } = slotInfo;
-              dispatch(
-                updateHorario({
-                  horario: {
-                    ...horario,
-                    dias: [moment(start).day()],
-                    inicio: start,
-                    fim: end,
-                  },
-                })
-              );
-              setComponents('drawer', true);
-            }}
-            formats={{
-              dateFormat: 'dd',
-              dayFormat: (date, culture, localizer) =>
-                localizer.format(date, 'dddd', culture),
-            }}
-            events={formatEventos()}
-            eventPropGetter={(event, start, end, isSelected) => {
-              return {
-                style: {
-                  backgroundColor: event.resource.backgroundColor,
-                  borderColor: event.resource.backgroundColor,
-                },
-              };
-            }}
-            date={diasSemanaData[moment().day()]}
-            view={components.view}
-            selectable={true}
-            popup={true}
-            toolbar={false}
-            style={{ height: 600 }}
-          />
-        </div>
-      </div>
+      <Calendar
+        localizer={localizer}
+        onNavigate={handleNavigate} // Adicionando o onNavigate
+        onSelectEvent={(e) => {
+          const { horario } = e.resource;
+          onHorarioClick(horario);
+        }}
+        onSelectSlot={(slotInfo) => {
+          const { start, end } = slotInfo;
+          dispatch(
+            updateHorario({
+              horario: {
+                ...horario,
+                dias: [moment(start).day()],
+                inicio: start,
+                fim: end,
+              },
+            })
+          );
+          setComponents('drawer', true);
+        }}
+        formats={{
+          dateFormat: 'dd',
+          dayFormat: (date, culture, localizer) =>
+            localizer.format(date, 'dddd', culture),
+        }}
+        events={formatEventos()}
+        eventPropGetter={(event, start, end, isSelected) => {
+          return {
+            style: {
+              backgroundColor: event.resource.backgroundColor,
+              borderColor: event.resource.backgroundColor,
+            },
+          };
+        }}
+        date={diasSemanaData[moment().day()] || new Date()} // Garantir que a data seja válida
+        view={components.view}
+        selectable={true}
+        popup={true}
+        toolbar={false}
+        style={{ height: 600 }}
+      />
     </div>
   );
 };

@@ -1,16 +1,11 @@
 const mongoose = require('mongoose');
 
-const URI = '';
+// Substitua com a sua URI do MongoDB Atlas
+const URI = 'mongodb+srv://renanqn1999:ckk5fVaUBXu9NTcO@clusterdev.7tufg.mongodb.net/salao-extensao?retryWrites=true&w=majority';
 
-const env = process.env.NODE_ENV || 'dev';
-let options = {};
-
-mongoose.set('useNewUrlParser', true);
-mongoose.set('useFindAndModify', false);
-mongoose.set('useCreateIndex', true);
-mongoose.set('useUnifiedTopology', true);
-
-mongoose
-  .connect(URI, options)
-  .then(() => console.log('DB is Up!'))
-  .catch((err) => console.log(err));
+mongoose.connect(URI, { 
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 30000
+ })
+  .then(() => console.log('Banco de dados conectado ao MongoDB Atlas!'))
+  .catch(err => console.error('Erro ao conectar ao banco de dados:', err));

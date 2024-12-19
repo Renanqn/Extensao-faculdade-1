@@ -25,7 +25,7 @@ import Table from '../../components/Table';
 
 const Clientes = () => {
   const dispatch = useDispatch();
-  const { cliente, clientes, form, components, behavior } = useSelector(
+  const { cliente = {}, clientes = [], form, components, behavior } = useSelector(
     (state) => state.cliente
   );
 
@@ -65,7 +65,6 @@ const Clientes = () => {
         'sexo',
       ])
     ) {
-      // DISPARAR O ALERTA
       Notification.error({
         placement: 'topStart',
         title: 'Calma lá!',
@@ -78,13 +77,12 @@ const Clientes = () => {
   };
 
   const remove = () => {
-    // PERFORM REMOVE
     dispatch(unlinkCliente());
   };
 
   useEffect(() => {
     dispatch(allClientes());
-  }, []);
+  }, [dispatch]);
 
   return (
     <div className="col p-5 overflow-auto h-100">
@@ -119,9 +117,8 @@ const Clientes = () => {
                   disabled={behavior !== 'create'}
                   onChange={(e) => {
                     setCliente('email', e.target.value);
-                    console.log(cliente);
                   }}
-                  value={cliente.email}
+                  value={cliente?.email || ''}
                 />
                 {behavior === 'create' && (
                   <div class="input-group-append">
@@ -132,7 +129,7 @@ const Clientes = () => {
                       onClick={() => {
                         dispatch(
                           filterCliente({
-                            filters: { email: cliente.email, status: 'A' },
+                            filters: { email: cliente?.email, status: 'A' },
                           })
                         );
                       }}
@@ -144,6 +141,7 @@ const Clientes = () => {
               </div>
             </div>
 
+            {/* O restante do formulário segue a mesma lógica de verificação */}
             <div className="form-group col-6">
               <b className="">Nome</b>
               <input
@@ -151,7 +149,7 @@ const Clientes = () => {
                 className="form-control"
                 placeholder="Nome do Cliente"
                 disabled={form.disabled}
-                value={cliente.nome}
+                value={cliente?.nome || ''}
                 onChange={(e) => setCliente('nome', e.target.value)}
               />
             </div>
@@ -162,7 +160,7 @@ const Clientes = () => {
                 className="form-control"
                 placeholder="Telefone / Whatsapp do Cliente"
                 disabled={form.disabled}
-                value={cliente.telefone}
+                value={cliente?.telefone || ''}
                 onChange={(e) => setCliente('telefone', e.target.value)}
               />
             </div>
@@ -173,7 +171,7 @@ const Clientes = () => {
                 type="date"
                 className="form-control"
                 disabled={form.disabled}
-                value={cliente.dataNascimento}
+                value={cliente?.dataNascimento || ''}
                 onChange={(e) => setCliente('dataNascimento', e.target.value)}
               />
             </div>
@@ -182,7 +180,7 @@ const Clientes = () => {
               <select
                 disabled={form.disabled}
                 className="form-control"
-                value={cliente.sexo}
+                value={cliente?.sexo || ''}
                 onChange={(e) => setCliente('sexo', e.target.value)}
               >
                 <option value="M">Masculino</option>
@@ -195,7 +193,7 @@ const Clientes = () => {
               <select
                 disabled={form.disabled}
                 className="form-control"
-                value={cliente.documento.tipo}
+                value={cliente?.documento?.tipo || ''}
                 onChange={(e) =>
                   setCliente('documento', {
                     ...cliente.documento,
@@ -213,7 +211,7 @@ const Clientes = () => {
                 type="text"
                 className="form-control"
                 disabled={form.disabled}
-                value={cliente.documento.numero}
+                value={cliente?.documento?.numero || ''}
                 onChange={(e) =>
                   setCliente('documento', {
                     ...cliente.documento,
@@ -230,7 +228,7 @@ const Clientes = () => {
                 className="form-control"
                 placeholder="Digite o CEP"
                 disabled={form.disabled}
-                value={cliente.endereco.cep}
+                value={cliente?.endereco?.cep || ''}
                 onChange={(e) =>
                   setCliente('endereco', {
                     ...cliente.endereco,
@@ -246,7 +244,7 @@ const Clientes = () => {
                 className="form-control"
                 placeholder="Rua / Logradouro"
                 disabled={form.disabled}
-                value={cliente.endereco.logradouro}
+                value={cliente?.endereco?.logradouro || ''}
                 onChange={(e) =>
                   setCliente('endereco', {
                     ...cliente.endereco,
@@ -262,7 +260,7 @@ const Clientes = () => {
                 className="form-control"
                 placeholder="Número"
                 disabled={form.disabled}
-                value={cliente.endereco.numero}
+                value={cliente?.endereco?.numero || ''}
                 onChange={(e) =>
                   setCliente('endereco', {
                     ...cliente.endereco,
@@ -278,7 +276,7 @@ const Clientes = () => {
                 className="form-control"
                 placeholder="UF"
                 disabled={form.disabled}
-                value={cliente.endereco.uf}
+                value={cliente?.endereco?.uf || ''}
                 onChange={(e) =>
                   setCliente('endereco', {
                     ...cliente.endereco,
@@ -294,7 +292,7 @@ const Clientes = () => {
                 className="form-control"
                 placeholder="Cidade"
                 disabled={form.disabled}
-                value={cliente.endereco.cidade}
+                value={cliente?.endereco?.cidade || ''}
                 onChange={(e) =>
                   setCliente('endereco', {
                     ...cliente.endereco,
@@ -305,7 +303,6 @@ const Clientes = () => {
             </div>
           </div>
           <Button
-            //disabled={ableToSave(cliente)}
             block
             className="btn-lg mt-3"
             color={behavior === 'create' ? 'green' : 'red'}
@@ -417,9 +414,6 @@ const Clientes = () => {
               <Button
                 color="blue"
                 size="xs"
-                /*onClick={() => {
-                  console.log(item);
-                }}*/
               >
                 Ver informações
               </Button>
@@ -433,3 +427,4 @@ const Clientes = () => {
 };
 
 export default Clientes;
+
